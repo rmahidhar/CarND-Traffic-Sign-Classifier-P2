@@ -6,6 +6,14 @@ from sklearn.utils import shuffle
 import tensorflowvisu
 import math
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import OneHotEncoder
+import os
+import numpy
+import matplotlib.gridspec as gridspec
+import csv
+import cv2
+import matplotlib.image as mpimg
 
 class Model(object):
     def __init__(self, input_shape, num_classes):
@@ -82,8 +90,8 @@ class Model(object):
 
         if batch_norm:
             conv, update_ema = self.batchnorm(conv, self._batch_norm_test,
-                                               self._batch_norm_iter,
-                                               bias, convolutional=True)
+                                              self._batch_norm_iter,
+                                              bias, convolutional=True)
             self._update_ema.append(update_ema)
         else:
             conv = tf.nn.bias_add(conv, bias)
@@ -255,8 +263,9 @@ class Model(object):
         self._optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self._cost)
 
         # Define accuracy operation
-        Y = tf.nn.softmax(self._activation)
-        self._correct_prediction = tf.equal(tf.argmax(Y, 1), tf.argmax(self._one_hot_y, 1))
+        self._pred_labels_sm = tf.nn.softmax(self._activation)
+        self._pred_labels = tf.argmax(self._pred_labels_sm, 1)
+        self._correct_prediction = tf.equal(self._pred_labels, tf.argmax(self._one_hot_y, 1))
         self._accuracy = tf.reduce_mean(tf.cast(self._correct_prediction, tf.float32))
 
         self.batch_trainer_2(x_train, y_train, x_validation, y_validation,
@@ -284,6 +293,84 @@ class Model(object):
             self._saver.restore(sess, tf.train.latest_checkpoint('.'))
             self._test_accuracy, self._test_loss = self._evaluate(x_test, y_test)
             print("Test Accuracy = {:.3f} Test Loss = {:.3f}".format(self._test_accuracy, self._test_loss))
+
+    def print_confusion_matrix(self, x_test, y_test):
+        with tf.Session() as sess:
+            self._saver.restore(sess, tf.train.latest_checkpoint('.'))
+            pred_labels = sess.run(self._pred_labels,
+                                   feed_dict={self._x: x_test[:1024],
+                                              self._y: y_test[:1024],
+                                              self._batch_norm_test: False,
+                                              self._keep_prob_conv: 1.,
+                                              self._keep_prob: 1.})
+
+            cm = confusion_matrix(y_true=y_test[:1024], y_pred=pred_labels)
+            print(cm)
+            plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+
+            # Make various adjustments to the plot.
+            plt.tight_layout()
+            plt.colorbar()
+            tick_marks = numpy.arange(self._nclasses)
+            plt.xticks(tick_marks, range(self._nclasses))
+            plt.yticks(tick_marks, range(self._nclasses))
+            plt.xlabel('Predicted')
+            plt.ylabel('True')
+
+
+    def pre_process_image(self, image_name):
+        image = cv2.imread(image_name)
+        image = cv2.resize(image,(32,32))
+        img = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        img = cv2.equalizeHist(img)
+        img = img[..., numpy.newaxis]
+        return img
+
+    def evaluate_extra_images(self, dir_name, labels):
+        images = [self.pre_process_image(dir_name + "/" + name) for name in os.listdir(dir_name)]
+        color_images = [mpimg.imread(dir_name + "/" + name) for name in os.listdir(dir_name)]
+        image_names = [name for name in os.listdir(dir_name)]
+        images = numpy.array(images, dtype=numpy.float32)
+        
+        with tf.Session() as sess:
+            self._saver.restore(sess, tf.train.latest_checkpoint('.'))
+
+            top5 = tf.nn.top_k(self._pred_labels_sm, 5)
+
+            pred_labels = sess.run(self._pred_labels_sm,
+                                   feed_dict={self._x: images,
+                                                 self._batch_norm_test: False,
+                                                 self._keep_prob_conv: 1.,
+                                                 self._keep_prob: 1.})
+
+            top5_pred = sess.run([self._pred_labels_sm, top5],
+                                  feed_dict={self._x: images,
+                                               self._batch_norm_test: False,
+                                               self._keep_prob_conv: 1.,
+                                               self._keep_prob: 1.})
+
+            f = open(labels)
+            names = csv.reader(f)
+            names = list(names)
+            names = names[1:]
+            sign_names = {}
+            for sign_label, sign_name in names:
+                sign_names[int(sign_label)] = sign_name
+
+            for i in range(len(image_names)):
+                plt.figure(figsize=(5, 1.5))
+                gs = gridspec.GridSpec(1, 2, width_ratios=[2, 3])
+                plt.subplot(gs[0])
+                plt.imshow(color_images[i])
+                plt.axis('off')
+                plt.subplot(gs[1])
+                plt.barh(6 - numpy.arange(5), top5_pred[1][0][i], align='center')
+                for i_label in range(5):
+                    plt.text(top5_pred[1][0][i][i_label] + .02, 6 - i_label - .25,
+                         sign_names[top5_pred[1][1][i][i_label]])
+                plt.axis('off')
+                plt.text(0, 6.95, image_names[i].split('.')[0])
+                plt.show()
 
     def train_and_plot(self,
                        x_train,
@@ -434,3 +521,78 @@ class Model(object):
 
         #plt.show()
         plt.savefig('myfilename.png')
+
+    """"
+    def plot_error_examples():
+        correct, labels_cls_pred = session.run([correct_prediction, labels_pred_cls],
+                                               feed_dict=feed_dict_test)
+        incorrect = (correct == False)
+        X_incorrect = X_test[incorrect]
+        y_incorrect = y_test[incorrect]
+        y_pred = labels_cls_pred[incorrect]
+
+        plot_random_3C(3, 3, X_incorrect, y_incorrect)
+
+    def plot_random_3C(n_row,n_col,X,y):
+
+        plt.figure(figsize = (11,8))
+        gs1 = gridspec.GridSpec(n_row,n_row)
+        gs1.update(wspace=0.01, hspace=0.02) # set the spacing between axes.
+
+        for i in range(n_row*n_col):
+            # i = i + 1 # grid spec indexes from 0
+            ax1 = plt.subplot(gs1[i])
+            plt.axis('on')
+            ax1.set_xticklabels([])
+            ax1.set_yticklabels([])
+            ax1.set_aspect('equal')
+            #plt.subplot(4,11,i+1)
+            ind_plot = np.random.randint(1,len(y))
+            plt.imshow(X[ind_plot])
+            plt.text(2,4,str(y[ind_plot]),
+                 color='k',backgroundcolor='c')
+            plt.axis('off')
+        plt.show()
+
+    def plot_random_1C(n_row,n_col,X,y):
+
+        plt.figure(figsize = (11,8))
+        gs1 = gridspec.GridSpec(n_row,n_row)
+        gs1.update(wspace=0.01, hspace=0.02) # set the spacing between axes.
+
+        for i in range(n_row*n_col):
+            # i = i + 1 # grid spec indexes from 0
+            ax1 = plt.subplot(gs1[i])
+            plt.axis('on')
+            ax1.set_xticklabels([])
+            ax1.set_yticklabels([])
+            ax1.set_aspect('equal')
+            #plt.subplot(4,11,i+1)
+            ind_plot = np.random.randint(1,len(y))
+            plt.imshow(X[ind_plot],cmap='gray')
+            plt.text(2,4,str(y[ind_plot]),
+                 color='k',backgroundcolor='c')
+            plt.axis('off')
+        plt.show()
+
+    def plot_random_preprocess(n_row,n_col,X,y):
+
+        plt.figure(figsize = (11,8))
+        gs1 = gridspec.GridSpec(n_row,n_row)
+        gs1.update(wspace=0.01, hspace=0.02) # set the spacing between axes.
+
+        for i in range(n_row*n_col):
+            # i = i + 1 # grid spec indexes from 0
+            ax1 = plt.subplot(gs1[i])
+            plt.axis('on')
+            ax1.set_xticklabels([])
+            ax1.set_yticklabels([])
+            ax1.set_aspect('equal')
+            #plt.subplot(4,11,i+1)
+            ind_plot = np.random.randint(1,len(y))
+            plt.imshow(pre_process_image(X[ind_plot]),cmap='gray')
+            plt.text(2,4,str(y[ind_plot]),
+                 color='k',backgroundcolor='c')
+            plt.axis('off')
+        plt.show()
+    """

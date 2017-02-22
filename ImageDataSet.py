@@ -38,14 +38,9 @@ class DataSet(object):
         return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
     def pre_process_image(self, image):
-        #image[:,:,0] = cv2.equalizeHist(image[:,:,0])
-        #image[:,:,1] = cv2.equalizeHist(image[:,:,1])
-        #image[:,:,2] = cv2.equalizeHist(image[:,:,2])
-        #image = image/255. - .5
         img = self.image_grayscale(image)
         img = cv2.equalizeHist(img)
         img = img[..., np.newaxis]
-        #img = self.image_normalize(img)
         return img
 
     def image_normalize(self, image):
@@ -61,58 +56,13 @@ class DataSet(object):
         image1 = cv2.cvtColor(image1, cv2.COLOR_HSV2RGB)
         return image1
 
-    def generate_variant_image(self, img):
+    def transform_image(self, img):
         if (random.choice([True, False])):
             image = ndimage.interpolation.shift(img, [random.randrange(-2, 2), random.randrange(-2, 2), 0])
         else:
             image = ndimage.interpolation.rotate(img, random.randrange(-10, 10), reshape=False)
         image = self.pre_process_image(image)    
         return image
-
-    def transform_image(self, img, ang_range=20, shear_range=10, trans_range=5):
-        '''
-        This function transforms images to generate new images.
-        The function takes in following arguments,
-        1- Image
-        2- ang_range: Range of angles for rotation
-        3- shear_range: Range of values to apply affine transform to
-        4- trans_range: Range of values to apply translations over.
-        A Random uniform distribution is used to generate different parameters for transformation
-
-        '''
-        # Rotation
-        ang_rot = np.random.uniform(ang_range) - ang_range / 2
-        rows, cols, ch = img.shape
-        rows = img.shape[0]
-        cols = img.shape[1]
-        Rot_M = cv2.getRotationMatrix2D((cols / 2, rows / 2), ang_rot, 1)
-
-        # Translation
-        tr_x = trans_range * np.random.uniform() - trans_range / 2
-        tr_y = trans_range * np.random.uniform() - trans_range / 2
-        Trans_M = np.float32([[1, 0, tr_x], [0, 1, tr_y]])
-
-        # Shear
-        pts1 = np.float32([[5, 5], [20, 5], [5, 20]])
-        pt1 = 5 + shear_range * np.random.uniform() - shear_range / 2
-        pt2 = 20 + shear_range * np.random.uniform() - shear_range / 2
-
-        pts2 = np.float32([[pt1, 5], [pt2, pt1], [5, pt2]])
-
-        shear_M = cv2.getAffineTransform(pts1, pts2)
-        img = cv2.warpAffine(img, Rot_M, (cols, rows))
-        img = cv2.warpAffine(img, Trans_M, (cols, rows))
-        img = cv2.warpAffine(img, shear_M, (cols, rows))
-
-        img = self.pre_process_image(img)
-
-        # Brightness
-        #if random.choice([True, False]):
-        #    img = augment_brightness_camera_images(img)
-
-        # print(img.shape)
-        # img.reshape([-1, rows, cols, 1])
-        return img
 
     def get_train_validation_dataset(self):
         train_f, train_l = shuffle(self._train_f, self._train_l)
@@ -146,10 +96,8 @@ class DataSet(object):
         for idx, label in enumerate(labels, start=0):
             if required_samples[label] > 1:
                 for i in range(required_samples[label]):
-                    #augmented_f.append(self.transform_image(self._train_f[idx]))
-                    augmented_f.append(self.generate_variant_image(self._train_f[idx]))
+                    augmented_f.append(self.transform_image(self._train_f[idx]))
                     augmented_l.append(label)
-                    # print(i, idx)
         train_f = self.pre_process_images(self._train_f)
         print("train shape {}".format(train_f.shape))
         augmented_f = np.append(np.array(train_f), np.array(augmented_f), axis=0)
