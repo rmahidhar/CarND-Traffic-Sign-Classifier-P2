@@ -901,20 +901,22 @@ I started with the basic LeNet model and then tweaked the layers and features ba
 * Modified LeNet model with data augmentation
 	* I tried multiple iterations by tweaking the convulation layers features, adding additional convolutional layers, fully connected layers and remvoing pooling layers. Finally, the following modified LeNet model provided me validation accuracy of 99% and test accuracy of 94-95%.
 
-		1. 5x5 convolution (32x32x1 in, 32x32x32 out)
-		2. ReLU
-		3. 4x4 convolution (32x32x32 in, 16x16x64 out)
-		4. ReLU
-		5. 3x3 convolution (16x16x64 in, 8x8x128 out)
-		6. ReLU
-		7. Flatten (8x8x128 -> 8192)
-		8. Fully connected (8192 in, 512 out)
-		9. ReLU
-		10. Dropout (0.75)
-		11. Fully connected (512 in, 256 out)
-		12. ReLU
-		13. Dropout (0.75)
-		14. Fully connected (256 in, 43 out)
+                layer | neurons | weights | biases | parameters
+		------| --------| --------| -------| ----------
+		5x5 convolution (32x32x1 in, 32x32x32 out) | 32768 | 800 | 32 | 
+		ReLU | | | |
+		4x4 convolution (32x32x32 in, 16x16x64 out) | 16384 | 1024 | 64 |
+		ReLU | | | |
+		3x3 convolution (16x16x64 in, 8x8x128 out) | 8192 | 1152 | 128 |
+		ReLU | | | |
+		Flatten (8x8x128 -> 8192) | | | |
+		Fully connected (8192 in, 512 out) | 512 | 4194304 | 512 | 
+		ReLU | | | |
+		Dropout (0.75) | | | |
+		Fully connected (512 in, 256 out) |256 | 131072 | 256 |
+		ReLU | | | |
+		Dropout (0.75) | | | |
+		Fully connected (256 in, 43 out) |43 | 11008 | 43 |
 
 #### Training Model
 
