@@ -362,7 +362,7 @@ class TrafficImageDataSet(object):
 
 	dataset = TrafficImageDataSet('train.p', 'test.p', 'signnames.csv') 
 
-Create TrafficImageDataSet object. The constructor reads the training, test dataset pickle files and also the signnames.csv file. Now the dataset object member functions can be used to accessed the dataset, plot images, e.t.c
+Create TrafficImageDataSet object. The constructor loads the training, test pickle files, and also the signnames.csv file. Now the dataset object member functions is used to access the dataset, plot images, e.t.c
 
 The pickled data is a dictionary with 4 key/value pairs:
 
@@ -371,11 +371,11 @@ The pickled data is a dictionary with 4 key/value pairs:
 * 'sizes' is a list containing tuples, (width, height) representing the the original width and height the image.
 * 'coords' is a list containing tuples, (x1, y1, x2, y2) representing coordinates of a bounding box around the sign in the image.
 
-The traffic sign classification mainly use only features and labels. I used coords generating a scaled image for additional images but this didn't help in the improvement of test accuracy. 
+The traffic sign classification mainly use only features and labels. I attempted using 'coords' values for generation scaled images, but scaled images didn't help in improving the model accuracies. 
 
 ###2. Summarize, Explore and Visualize the dataset
 
-The German Traffic Sign Dataset consists of 39,209 32×32 px color images that we are supposed to use for training, and 12,630 images that we will use for testing. Each image is a photo of a traffic sign belonging to one of 43 classes, e.g. traffic sign types.
+The German Traffic Sign Dataset consists of 39,209 32×32 px color images for training, and 12,630 images for testing. Each image is a photo of a traffic sign belonging to one of 43 classes, e.g. traffic sign types.
 
 ```python
 # print the train and test dataset count
