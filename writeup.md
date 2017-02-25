@@ -814,41 +814,53 @@ class Model(object):
             plt.ylabel('True')
             plt.show()
                 
-    def evaluate_additional_images(self, images, labels):       
+    def evaluate_additional_images(self, orig_images, images, labels):       
         with tf.Session() as sess:
             self._saver.restore(sess, tf.train.latest_checkpoint('.'))
 
-            top3 = tf.nn.top_k(self._pred_labels_sm, 3)
+            topk = tf.nn.top_k(self._pred_labels_sm, 5)
 
             pred_labels = sess.run(self._pred_labels_sm,
                                    feed_dict={self._x: images,
                                               self._keep_prob_conv: 1.,
                                               self._keep_prob: 1.})
 
-            top3_pred = sess.run([self._pred_labels_sm, top3],
+            topk_pred = sess.run([self._pred_labels_sm, topk],
                                   feed_dict={self._x: images,
                                              self._keep_prob_conv: 1.,
                                              self._keep_prob: 1.})
 
-            self.plot_top_k_predictions(top3_pred[1], images, labels)
+            self.plot_top_k_predictions(topk_pred[1], orig_images, labels)
+            return topk_pred[1]
     
     def plot_top_k_predictions(self, topk_pred, images, labels):
-        rows = len(images)
-        cols = 4
-        fig, ax = plt.subplots(rows, cols, figsize=(16, 16))
-        ax = ax.ravel()
-        fig.tight_layout()
-        for num, image in enumerate(images):
-            ax[num * 4].axis('off')
-            ax[num * 4].imshow(image.squeeze())
-            ax[num * 4].set_title('input')            
-            for guess in range(3):
-                pred = topk_pred[1][num][guess]
-                idx = np.argwhere(self._y_validation == pred)[0]
-                ax[num * 4 + guess + 1].axis('off')
-                ax[num * 4 + guess + 1].imshow(self._x_validation[idx].squeeze(), cmap='gray')
-                ax[num * 4 + guess + 1].set_title('{}({:.0f}%)'.format(labels[pred], 
-                                                                       100*topk_pred[0][num][guess]))
+
+        for i, image in enumerate(images):
+            # Prepare the grid
+            plt.figure(figsize = (6, 2))
+            gridspec.GridSpec(1, 2)
+
+            # Plot original image
+            plt.subplot2grid((1, 2), (0, 0), colspan=1, rowspan=1)
+            plt.imshow(image.squeeze())
+            plt.axis('off')
+
+            # Plot predictions
+            plt.subplot2grid((1, 2), (0, 1), colspan=1, rowspan=1)
+            plt.barh(np.arange(5)+.5, 
+                     topk_pred[0][i], 
+                     align='center')
+            plt.yticks(np.arange(5)+.5, 
+                       labels[topk_pred[1][i].astype(int)])
+            plt.tick_params(axis='both', 
+                            which='both', 
+                            labelleft='off', 
+                            labelright='on', 
+                            labeltop='off', 
+                            labelbottom='off')
+
+            plt.show()
+
             
     def plot_model(self):
         fig = plt.figure(figsize=(19.20,10.80), dpi=70)
@@ -892,31 +904,33 @@ I started with the basic LeNet model and then tweaked the layers and features ba
 
 	* Color images gave validaton accuracy of 97% and test accuracy of 92%.
 	* Gray scale images gave validaton accuracy of 97% and test accuracy of 92%.
-	* Gray scale with hist equilization gave validation accuracy of 97% and test accuracy of 92%.
-	* Gray scale with hist equilization and normalization worsened the validation and test accuracy for some reason.
+	* Gray scale with histogram equilization gave validation accuracy of 97% and test accuracy of 92%.
+	* Gray scale with histogram equilization and normalization worsened the validation and test accuracy for some reason.
 	
 * Basic LeNet model with data augmentation
-	* As I haven't observed any improvement in validation and test accuracy with various pre processing method, I tried with data augmentation by ensuring every traffic sign class has atleast 1000 samples. Out of my suprise I didn't observed any improvement. Even with data augmentation in 25 epochs the validation accuracy was 98% and test accuracy was 92%.
+	* I haven't observed any improvement in validation and test accuracy with various pre processing method, so tried with data augmentation ensuring every traffic sign class has atleast 1000 samples. Out of my suprise I didn't observed any improvement. Even with data augmentation in 25 epochs the validation accuracy was 98% and test accuracy was 92%.
 	
 * Modified LeNet model with data augmentation
-	* I tried multiple iterations by tweaking the convulation layers features, adding additional convolutional layers, fully connected layers and remvoing pooling layers. Finally, the following modified LeNet model provided me validation accuracy of 99% and test accuracy of 94-95%.
+	* I tried multiple iterations by tweaking the conv layer feature maps and layers, fully connected layers and pooling layers. Finally, the following modified LeNet model resulted in validation accuracy of 99% and test accuracy of 94-95%.
 
                 layer | neurons | weights | biases | parameters
 		------| --------| --------| -------| ----------
-		5x5 convolution (32x32x1 in, 32x32x32 out) | 32768 | 800 | 32 | 
+		5x5 convolution (32x32x1 in, 32x32x32 out) | 32768 | 800 | 32 | 1600
 		ReLU | | | |
-		4x4 convolution (32x32x32 in, 16x16x64 out) | 16384 | 1024 | 64 |
+		4x4 convolution (32x32x32 in, 16x16x64 out) | 16384 | 1024 | 64 | 1088
 		ReLU | | | |
-		3x3 convolution (16x16x64 in, 8x8x128 out) | 8192 | 1152 | 128 |
+		3x3 convolution (16x16x64 in, 8x8x128 out) | 8192 | 1152 | 128 | 1280
 		ReLU | | | |
 		Flatten (8x8x128 -> 8192) | | | |
-		Fully connected (8192 in, 512 out) | 512 | 4194304 | 512 | 
+		Fully connected (8192 in, 512 out) | 512 | 4194304 | 512 | 4194816
 		ReLU | | | |
 		Dropout (0.75) | | | |
-		Fully connected (512 in, 256 out) |256 | 131072 | 256 |
+		Fully connected (512 in, 256 out) |256 | 131072 | 256 | 131328
 		ReLU | | | |
 		Dropout (0.75) | | | |
-		Fully connected (256 in, 43 out) |43 | 11008 | 43 |
+		Fully connected (256 in, 43 out) |43 | 11008 | 43 | 11051
+
+	* The model requires total of 58155 neurons and 4341163 parameters.
 
 #### Training Model
 
@@ -937,7 +951,7 @@ def ModifiedLeNet(dataset):
 
 model = ModifiedLeNet(dataset)
 x_train, y_train, x_validation, y_validation = dataset.get_pre_processed_augmented_train_validation_dataset()
-model.train(x_train, y_train, x_validation, y_validation, epochs=30)
+model.train(x_train, y_train, x_validation, y_validation, epochs=15)
 model.plot_model()
 ```        
 
